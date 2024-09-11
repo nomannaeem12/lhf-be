@@ -4,11 +4,14 @@ import { UpdateCarrierDto } from './dto/update-carrier.dto';
 import { Model } from 'mongoose';
 import { Carrier } from './entities/carrier.entity';
 import { InjectModel } from '@nestjs/mongoose';
+import { NewRegisteredCarriers } from './entities/new-registered-carriers.entity';
 
 @Injectable()
 export class CarriersService {
   constructor(
     @InjectModel(Carrier.name) private carrierModel: Model<Carrier>,
+    @InjectModel(NewRegisteredCarriers.name)
+    private newRegisteredCarriersModel: Model<NewRegisteredCarriers>,
   ) {}
   create(createCarrierDto: CreateCarrierDto) {
     return 'This action adds a new carrier';
@@ -57,6 +60,38 @@ export class CarriersService {
         path: 'notes',
         model: 'Note',
       })
+      .sort(sortOptions)
+      .skip(skip)
+      .limit(pageSize)
+      .exec();
+
+    return { carriers, totalCount };
+  }
+
+  async getNewRegisteredCarriers(
+    page = 1,
+    pageSize = 10,
+    searchText?: string,
+    sortField?: string,
+    sortOrder: 'asc' | 'desc' = 'asc',
+  ): Promise<{ carriers: NewRegisteredCarriers[]; totalCount: number }> {
+    const skip = page * pageSize;
+
+    let searchQuery: any = {};
+    if (searchText) {
+      searchQuery = { $text: { $search: `"${searchText}"` } };
+    }
+
+    const sortOptions: any = {};
+    if (sortField) {
+      sortOptions[sortField] = sortOrder === 'asc' ? 1 : -1;
+    }
+
+    const totalCount =
+      await this.newRegisteredCarriersModel.countDocuments(searchQuery);
+
+    const carriers = await this.newRegisteredCarriersModel
+      .find(searchQuery)
       .sort(sortOptions)
       .skip(skip)
       .limit(pageSize)

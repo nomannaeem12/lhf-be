@@ -3,7 +3,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
-import { Repository } from 'typeorm';
+import { Brackets, Repository } from 'typeorm';
 
 @Injectable()
 export class UsersService {
@@ -23,6 +23,46 @@ export class UsersService {
 
   findAll() {
     return `This action returns all users`;
+  }
+
+  async getFilteredUsers(
+    page = 1,
+    pageSize = 10,
+    searchText?: string,
+    sortField?: string,
+    sortOrder: 'asc' | 'desc' = 'asc',
+  ): Promise<{ users: User[]; totalCount: number }> {
+    let queryBuilder = this.userRepository.createQueryBuilder('user');
+
+    queryBuilder = queryBuilder.orderBy(
+      `user.${sortField}`,
+      sortOrder === 'asc' ? 'ASC' : 'DESC',
+    );
+
+    queryBuilder = queryBuilder.skip(page * pageSize).take(pageSize);
+
+    if (searchText) {
+      const queryParam = `%${searchText}%`;
+      queryBuilder = queryBuilder.andWhere(
+        new Brackets((qb) => {
+          qb.where('CAST(user.id AS text) ILike :id', { id: queryParam })
+            .orWhere('user.fullName ILike :fullName', {
+              fullName: queryParam,
+            })
+            .orWhere('user.email ILike :email', { email: queryParam })
+            .orWhere(
+              `TO_CHAR(CAST(user.createdAt AS DATE), 'MM/DD/YY') ILike :createdAt`,
+              {
+                createdAt: queryParam,
+              },
+            );
+        }),
+      );
+    }
+
+    const [users, totalCount] = await queryBuilder.getManyAndCount();
+
+    return { users, totalCount };
   }
 
   findOne(id: number) {
@@ -45,6 +85,7 @@ export class UsersService {
         firstName: true,
         lastName: true,
         email: true,
+        id: true,
         password: selectPassword,
       },
     });
